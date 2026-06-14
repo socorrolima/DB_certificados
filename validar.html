@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Validar Certificado — SNAS/MDS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<style>
+  body { background: #f4f6f9; font-family: 'Segoe UI', Arial, sans-serif; }
+  .header { background: #003580; color: #fff; padding: 18px 32px; }
+  .card { border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); border: none; }
+</style>
+</head>
+<body>
+
+<div class="header d-flex align-items-center gap-3">
+  <div>
+    <div class="fw-bold" style="font-size:1.2rem">🏛️ SNAS / MDS</div>
+    <div style="font-size:.82rem;opacity:.82">Secretaria Nacional de Assistência Social</div>
+  </div>
+  <span class="badge ms-auto" style="background:#1a7a3c;font-size:.8rem">GOV.BR</span>
+</div>
+
+<div class="container py-5" style="max-width:600px">
+  <div class="card p-4">
+    <h5 class="fw-bold text-primary mb-1">🔍 Validar Autenticidade do Certificado</h5>
+    <p class="text-muted small mb-4">
+      Informe o código ou o hash do certificado para verificar sua autenticidade.
+    </p>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Código ou hash do certificado</label>
+      <input type="text" id="inp-cod" class="form-control"
+             placeholder="CERT-2026-000001 ou hash SHA-256"
+             onkeydown="if(event.key==='Enter') validar()"/>
+    </div>
+
+    <button class="btn btn-primary w-100 fw-bold py-2" onclick="validar()">
+      🔎 Verificar Certificado
+    </button>
+
+    <div id="resultado" class="mt-4" style="display:none"></div>
+
+    <div class="mt-4 pt-3 border-top text-center">
+      <a href="../index.html" class="text-decoration-none text-muted small">
+        ← Voltar para emissão de certificados
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://bwmrtdqmscvwlzhuhaax.supabase.co';
+const SUPA_KEY = 'sb_publishable_HcURuILAWFshK0RyjIB7LQ_iDgqHzv5';
+
+async function supa(tabela, filtros = '', select = '*') {
+  const url = `${SUPA_URL}/rest/v1/${tabela}?select=${select}${filtros}`;
+  const res = await fetch(url, {
+    headers: {
+      'apikey':        SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY,
+    }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Lê hash da URL se vier via QR Code (?c=HASH)
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const cod    = params.get('c') || params.get('codigo') || '';
+  if (cod) {
+    document.getElementById('inp-cod').value = cod;
+    validar();
+  }
+});
+
+async function validar() {
+  const cod = document.getElementById('inp-cod').value.trim();
+  if (!cod) return;
+
+  const el = document.getElementById('resultado');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="alert alert-info py-2 small">⏳ Verificando...</div>';
+
+  try {
+    // Busca por hash ou código
+    const certs = await supa(
+      'certificados',
+      `&or=(hash_validacao.eq.${cod},codigo.eq.${cod.toUpperCase()})`,
+      'id,codigo,hash_validacao,data_geracao,participante_id,evento_id'
+    );
+
+    if (!certs.length) {
+      el.innerHTML = `
+        <div class="alert alert-danger">
+          <div class="fw-bold mb-1">❌ Certificado não encontrado</div>
+          <div class="small">O código ou hash informado não corresponde a nenhum certificado emitido por este sistema.</div>
+        </div>`;
+      return;
+    }
+
+    const cert = certs[0];
+
+    // Busca participante
+    const parts = await supa('participantes', `&id=eq.${cert.participante_id}`, 'nome,municipio');
+    const part  = parts[0] || {};
+
+    // Busca evento
+    const evs   = await supa('eventos', `&id=eq.${cert.evento_id}`, 'nome_evento,cidade,periodo');
+    const evento = evs[0] || {};
+
+    const dataEmissao = new Date(cert.data_geracao).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: 'long', year: 'numeric'
+    });
+
+    el.innerHTML = `
+      <div class="alert alert-success mb-0">
+        <div class="fw-bold mb-3">✅ Certificado válido e autêntico</div>
+        <table class="table table-sm table-borderless mb-0 small">
+          <tr>
+            <td class="fw-semibold text-muted" style="width:40%">Participante</td>
+            <td>${part.nome || '—'}</td>
+          </tr>
+          ${part.municipio ? `<tr><td class="fw-semibold text-muted">Município</td><td>${part.municipio}</td></tr>` : ''}
+          <tr>
+            <td class="fw-semibold text-muted">Evento</td>
+            <td>${evento.nome_evento || '—'}</td>
+          </tr>
+          <tr>
+            <td class="fw-semibold text-muted">Local</td>
+            <td>${evento.cidade || '—'}</td>
+          </tr>
+          <tr>
+            <td class="fw-semibold text-muted">Período</td>
+            <td>${evento.periodo || '—'}</td>
+          </tr>
+          <tr>
+            <td class="fw-semibold text-muted">Emitido em</td>
+            <td>${dataEmissao}</td>
+          </tr>
+          <tr>
+            <td class="fw-semibold text-muted">Código</td>
+            <td><code>${cert.codigo}</code></td>
+          </tr>
+        </table>
+      </div>`;
+
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-danger">❌ Erro ao verificar: ${e.message}</div>`;
+  }
+}
+</script>
+</body>
+</html>
