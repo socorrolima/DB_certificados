@@ -3,153 +3,429 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Validar Certificado — SNAS/MDS</title>
+<title>Admin — Certificados SNAS/MDS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <style>
   body { background: #f4f6f9; font-family: 'Segoe UI', Arial, sans-serif; }
-  .header { background: #003580; color: #fff; padding: 18px 32px; }
-  .card { border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); border: none; }
+  .sidebar { width: 220px; min-height: 100vh; background: #003580; color: #fff; padding: 20px 0; flex-shrink: 0; }
+  .sidebar a { display: block; padding: 10px 20px; color: rgba(255,255,255,.8); text-decoration: none; font-size: .88rem; cursor: pointer; }
+  .sidebar a:hover { background: rgba(255,255,255,.1); color: #fff; }
+  .main { flex: 1; padding: 28px; overflow-y: auto; }
+  #login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #app { display: none; }
+  .card { border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.07); border: none; }
 </style>
 </head>
 <body>
 
-<div class="header d-flex align-items-center gap-3">
-  <div>
-    <div class="fw-bold" style="font-size:1.2rem">🏛️ SNAS / MDS</div>
-    <div style="font-size:.82rem;opacity:.82">Secretaria Nacional de Assistência Social</div>
-  </div>
-  <span class="badge ms-auto" style="background:#1a7a3c;font-size:.8rem">GOV.BR</span>
-</div>
-
-<div class="container py-5" style="max-width:600px">
-  <div class="card p-4">
-    <h5 class="fw-bold text-primary mb-1">🔍 Validar Autenticidade do Certificado</h5>
-    <p class="text-muted small mb-4">
-      Informe o código ou o hash do certificado para verificar sua autenticidade.
-    </p>
-
+<!-- LOGIN -->
+<div id="login-wrap">
+  <div class="card p-4" style="width:360px">
+    <div class="text-center mb-4">
+      <div style="font-size:2.5rem">🏛️</div>
+      <h5 class="fw-bold text-primary">SNAS / MDS</h5>
+      <p class="text-muted small">Área Administrativa</p>
+    </div>
     <div class="mb-3">
-      <label class="form-label fw-semibold">Código ou hash do certificado</label>
-      <input type="text" id="inp-cod" class="form-control"
-             placeholder="CERT-2026-000001 ou hash SHA-256"
-             onkeydown="if(event.key==='Enter') validar()"/>
+      <label class="form-label fw-semibold">E-mail</label>
+      <input type="email" id="l-email" class="form-control" value="admin@mds.gov.br"/>
+    </div>
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Senha</label>
+      <input type="password" id="l-senha" class="form-control" placeholder="sua senha"
+             onkeydown="if(event.key==='Enter') login()"/>
+    </div>
+    <button class="btn btn-primary w-100 fw-bold" onclick="login()">Entrar</button>
+    <div id="l-err" class="alert alert-danger small mt-3" style="display:none"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="d-flex" style="min-height:100vh">
+  <div class="sidebar">
+    <div class="px-4 mb-4">
+      <div class="fw-bold">🏛️ SNAS/MDS</div>
+      <div style="font-size:.72rem;opacity:.7">Certificados</div>
+    </div>
+    <a id="menu-eventos">📅 Eventos</a>
+    <a id="menu-novo">➕ Novo Evento</a>
+    <a id="menu-logs">📋 Logs</a>
+    <hr style="border-color:rgba(255,255,255,.2);margin:12px 16px"/>
+    <a onclick="logout()" style="color:rgba(255,100,100,.8)">🚪 Sair</a>
+  </div>
+
+  <div class="main">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h5 class="fw-bold mb-0" id="titulo">Eventos</h5>
+      <span class="badge bg-primary" id="adm-nome"></span>
     </div>
 
-    <button class="btn btn-primary w-100 fw-bold py-2" onclick="validar()">
-      🔎 Verificar Certificado
-    </button>
+    <!-- LISTA EVENTOS -->
+    <div id="s-eventos">
+      <button class="btn btn-sm btn-outline-primary mb-3" onclick="loadEvs()">🔄 Atualizar</button>
+      <div id="lista-evs"></div>
+    </div>
 
-    <div id="resultado" class="mt-4" style="display:none"></div>
+    <!-- NOVO / EDITAR EVENTO -->
+    <div id="s-novo" style="display:none">
+      <div class="card p-4" style="max-width:700px">
+        <h6 class="fw-bold mb-3" id="form-titulo">Novo Evento</h6>
+        <input type="hidden" id="ev-id"/>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Nome do Evento *</label>
+            <input type="text" id="ev-nome" class="form-control"/>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Cidade *</label>
+            <input type="text" id="ev-cidade" class="form-control"/>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Período *</label>
+            <input type="text" id="ev-periodo" class="form-control" placeholder="20 e 21 de maio de 2026"/>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Carga Horária *</label>
+            <input type="text" id="ev-carga" class="form-control" placeholder="16 horas"/>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Status</label>
+            <select id="ev-status" class="form-select">
+              <option value="ativo">Ativo</option>
+              <option value="inativo">Inativo</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Texto do Certificado *</label>
+            <small class="text-muted d-block mb-1">
+              Use: <code>{Nome}</code> <code>{Municipio}</code> <code>{Cidade}</code> <code>{Data}</code> <code>{Carga_Horaria}</code>
+            </small>
+            <textarea id="ev-texto" class="form-control" rows="5"
+              placeholder="Certificamos que {Nome}, representante do Município de {Municipio}, participou do evento realizado em {Cidade} no período de {Data}, com carga horária de {Carga_Horaria}."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">🖼️ Template do Certificado (PNG/JPG)</label>
+            <small class="text-muted d-block mb-1">Imagem de fundo em paisagem</small>
+            <input type="file" id="ev-template" class="form-control" accept=".png,.jpg,.jpeg"/>
+            <div id="preview-template" class="mt-2" style="display:none">
+              <img id="img-template" style="max-width:100%;border-radius:8px;border:1px solid #e5e7eb"/>
+            </div>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary fw-bold" onclick="salvarEv()">💾 Salvar</button>
+          <button class="btn btn-outline-secondary" onclick="sec('eventos')">Cancelar</button>
+        </div>
+        <div id="ev-msg" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
 
-    <div class="mt-4 pt-3 border-top text-center">
-      <a href="../index.html" class="text-decoration-none text-muted small">
-        ← Voltar para emissão de certificados
-      </a>
+    <!-- PARTICIPANTES -->
+    <div id="s-participantes" style="display:none">
+      <div class="card p-4" style="max-width:700px">
+        <h6 class="fw-bold mb-1" id="part-titulo">Participantes</h6>
+        <p class="text-muted small mb-3">Importe a planilha de participantes.</p>
+        <input type="hidden" id="part-eid"/>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">📋 Planilha (XLSX/CSV)</label>
+          <small class="text-muted d-block mb-1">Coluna obrigatória: <code>Nome</code> — opcional: <code>Municipio</code></small>
+          <input type="file" id="f-plan" class="form-control" accept=".xlsx,.xls,.csv"/>
+        </div>
+        <button class="btn btn-primary fw-bold" onclick="importarPlanilha()">📤 Importar</button>
+        <div id="m-plan" class="mt-2" style="display:none"></div>
+        <div id="lista-parts" class="mt-3"></div>
+        <button class="btn btn-outline-secondary btn-sm mt-3" onclick="sec('eventos')">← Voltar</button>
+      </div>
+    </div>
+
+    <!-- LOGS -->
+    <div id="s-logs" style="display:none">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">📋 Logs</h6>
+        <div id="lista-logs" class="small"></div>
+      </div>
     </div>
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const SUPA_URL = 'https://bwmrtdqmscvwlzhuhaax.supabase.co';
 const SUPA_KEY = 'sb_publishable_HcURuILAWFshK0RyjIB7LQ_iDgqHzv5';
 
-async function supa(tabela, filtros = '', select = '*') {
+async function supa(tabela, opts = {}) {
+  const { method='GET', filtros='', body=null, select='*' } = opts;
   const url = `${SUPA_URL}/rest/v1/${tabela}?select=${select}${filtros}`;
+  const headers = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Content-Type': 'application/json' };
+  if (method === 'POST') headers['Prefer'] = 'return=representation';
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : null });
+  if (!res.ok) throw new Error(await res.text());
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : [];
+}
+
+async function supaUpdate(tabela, id, body) {
+  const url = `${SUPA_URL}/rest/v1/${tabela}?id=eq.${id}`;
   const res = await fetch(url, {
-    headers: {
-      'apikey':        SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY,
-    }
+    method: 'PATCH',
+    headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
 }
 
-// Lê hash da URL se vier via QR Code (?c=HASH)
-window.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search);
-  const cod    = params.get('c') || params.get('codigo') || '';
-  if (cod) {
-    document.getElementById('inp-cod').value = cod;
-    validar();
+async function supaDelete(tabela, filtro) {
+  const url = `${SUPA_URL}/rest/v1/${tabela}?${filtro}`;
+  const res = await fetch(url, { method: 'DELETE', headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer '+SUPA_KEY } });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// ── Auth ──────────────────────────────────────────
+let logado = sessionStorage.getItem('adm') === '1';
+if (logado) showApp();
+
+async function login() {
+  const email = document.getElementById('l-email').value.trim();
+  const senha = document.getElementById('l-senha').value;
+  try {
+    const admins = await supa('admins', { filtros: `&email=eq.${email}&senha_hash=eq.${senha}&ativo=eq.true` });
+    if (admins.length) {
+      sessionStorage.setItem('adm', '1');
+      showApp(); loadEvs();
+      await registrarLog('login', email);
+    } else {
+      document.getElementById('l-err').textContent = 'E-mail ou senha incorretos.';
+      document.getElementById('l-err').style.display = 'block';
+    }
+  } catch(e) {
+    document.getElementById('l-err').textContent = 'Erro: ' + e.message;
+    document.getElementById('l-err').style.display = 'block';
   }
-});
+}
 
-async function validar() {
-  const cod = document.getElementById('inp-cod').value.trim();
-  if (!cod) return;
+function showApp() {
+  document.getElementById('login-wrap').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('adm-nome').textContent = 'Administrador';
+}
 
-  const el = document.getElementById('resultado');
-  el.style.display = 'block';
-  el.innerHTML = '<div class="alert alert-info py-2 small">⏳ Verificando...</div>';
+function logout() {
+  sessionStorage.removeItem('adm');
+  location.reload();
+}
+
+// ── Navegação ─────────────────────────────────────
+function sec(s) {
+  ['eventos','novo','participantes','logs'].forEach(x =>
+    document.getElementById('s-'+x).style.display = 'none'
+  );
+  document.getElementById('s-'+s).style.display = 'block';
+  const ts = { eventos:'Eventos', novo:'Evento', participantes:'Participantes', logs:'Logs' };
+  document.getElementById('titulo').textContent = ts[s] || s;
+  if (s === 'logs') loadLogs();
+}
+
+document.getElementById('menu-eventos').onclick = () => sec('eventos');
+document.getElementById('menu-logs').onclick    = () => sec('logs');
+document.getElementById('menu-novo').onclick    = () => {
+  limparForm();
+  document.getElementById('form-titulo').textContent = 'Novo Evento';
+  sec('novo');
+};
+
+// ── Eventos ───────────────────────────────────────
+async function loadEvs() {
+  try {
+    const evs = await supa('eventos', { filtros: '&order=criado_em.desc' });
+    const el  = document.getElementById('lista-evs');
+    if (!evs.length) { el.innerHTML = '<p class="text-muted">Nenhum evento. Clique em "Novo Evento".</p>'; return; }
+    el.innerHTML = evs.map(ev => `
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div style="flex:1">
+            <div class="fw-bold">${ev.nome_evento}</div>
+            <div class="text-muted small">${ev.cidade} · ${ev.periodo} · ${ev.carga_horaria}</div>
+            <div class="small text-muted mt-1" style="max-height:36px;overflow:hidden">
+              ${ev.texto_certificado ? ev.texto_certificado.substring(0,100)+'...' : '<span class="text-danger">⚠️ Sem texto do certificado</span>'}
+            </div>
+            <div class="mt-2">
+              <span class="badge me-1" style="background:${ev.status==='ativo'?'#dcfce7':'#fee2e2'};color:${ev.status==='ativo'?'#15803d':'#dc2626'}">${ev.status}</span>
+              ${ev.template_base64 ? '<span class="badge bg-light text-dark">🖼️ Template ok</span>' : '<span class="badge bg-warning text-dark">⚠️ Sem template</span>'}
+            </div>
+          </div>
+          <div class="d-flex flex-column gap-1 ms-3">
+            <button class="btn btn-sm btn-outline-primary" onclick="editarEv('${ev.id}')">✏️ Editar</button>
+            <button class="btn btn-sm btn-outline-success" onclick="abrirParticipantes('${ev.id}','${ev.nome_evento.replace(/'/g,"\\'")}')">👥 Planilha</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="delEv('${ev.id}')">🗑️</button>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('lista-evs').innerHTML = '<p class="text-danger">Erro: '+e.message+'</p>';
+  }
+}
+
+function limparForm() {
+  document.getElementById('ev-id').value = '';
+  ['ev-nome','ev-cidade','ev-periodo','ev-carga','ev-texto'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ev-status').value = 'ativo';
+  document.getElementById('preview-template').style.display = 'none';
+  document.getElementById('ev-msg').style.display = 'none';
+}
+
+async function editarEv(id) {
+  const evs = await supa('eventos', { filtros: `&id=eq.${id}` });
+  const ev  = evs[0]; if (!ev) return;
+  document.getElementById('ev-id').value      = ev.id;
+  document.getElementById('ev-nome').value    = ev.nome_evento;
+  document.getElementById('ev-cidade').value  = ev.cidade;
+  document.getElementById('ev-periodo').value = ev.periodo;
+  document.getElementById('ev-carga').value   = ev.carga_horaria;
+  document.getElementById('ev-texto').value   = ev.texto_certificado;
+  document.getElementById('ev-status').value  = ev.status;
+  document.getElementById('form-titulo').textContent = 'Editar Evento';
+  document.getElementById('ev-msg').style.display = 'none';
+  if (ev.template_base64) {
+    document.getElementById('img-template').src = ev.template_base64;
+    document.getElementById('preview-template').style.display = 'block';
+  } else {
+    document.getElementById('preview-template').style.display = 'none';
+  }
+  sec('novo');
+}
+
+async function salvarEv() {
+  const id    = document.getElementById('ev-id').value;
+  const nome  = document.getElementById('ev-nome').value.trim();
+  const cidade = document.getElementById('ev-cidade').value.trim();
+  const texto  = document.getElementById('ev-texto').value.trim();
+  if (!nome || !cidade || !texto) {
+    evMsg('ev-msg','⚠️ Preencha Nome, Cidade e Texto do Certificado.','warning'); return;
+  }
+  let templateB64 = null;
+  const fi = document.getElementById('ev-template');
+  if (fi.files[0]) templateB64 = await fileParaBase64(fi.files[0]);
+
+  const body = {
+    nome_evento: nome, cidade,
+    periodo:      document.getElementById('ev-periodo').value.trim(),
+    carga_horaria: document.getElementById('ev-carga').value.trim(),
+    texto_certificado: texto,
+    status: document.getElementById('ev-status').value,
+  };
+  if (templateB64) body.template_base64 = templateB64;
 
   try {
-    // Busca por hash ou código
-    const certs = await supa(
-      'certificados',
-      `&or=(hash_validacao.eq.${cod},codigo.eq.${cod.toUpperCase()})`,
-      'id,codigo,hash_validacao,data_geracao,participante_id,evento_id'
-    );
-
-    if (!certs.length) {
-      el.innerHTML = `
-        <div class="alert alert-danger">
-          <div class="fw-bold mb-1">❌ Certificado não encontrado</div>
-          <div class="small">O código ou hash informado não corresponde a nenhum certificado emitido por este sistema.</div>
-        </div>`;
-      return;
-    }
-
-    const cert = certs[0];
-
-    // Busca participante
-    const parts = await supa('participantes', `&id=eq.${cert.participante_id}`, 'nome,municipio');
-    const part  = parts[0] || {};
-
-    // Busca evento
-    const evs   = await supa('eventos', `&id=eq.${cert.evento_id}`, 'nome_evento,cidade,periodo');
-    const evento = evs[0] || {};
-
-    const dataEmissao = new Date(cert.data_geracao).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: 'long', year: 'numeric'
-    });
-
-    el.innerHTML = `
-      <div class="alert alert-success mb-0">
-        <div class="fw-bold mb-3">✅ Certificado válido e autêntico</div>
-        <table class="table table-sm table-borderless mb-0 small">
-          <tr>
-            <td class="fw-semibold text-muted" style="width:40%">Participante</td>
-            <td>${part.nome || '—'}</td>
-          </tr>
-          ${part.municipio ? `<tr><td class="fw-semibold text-muted">Município</td><td>${part.municipio}</td></tr>` : ''}
-          <tr>
-            <td class="fw-semibold text-muted">Evento</td>
-            <td>${evento.nome_evento || '—'}</td>
-          </tr>
-          <tr>
-            <td class="fw-semibold text-muted">Local</td>
-            <td>${evento.cidade || '—'}</td>
-          </tr>
-          <tr>
-            <td class="fw-semibold text-muted">Período</td>
-            <td>${evento.periodo || '—'}</td>
-          </tr>
-          <tr>
-            <td class="fw-semibold text-muted">Emitido em</td>
-            <td>${dataEmissao}</td>
-          </tr>
-          <tr>
-            <td class="fw-semibold text-muted">Código</td>
-            <td><code>${cert.codigo}</code></td>
-          </tr>
-        </table>
-      </div>`;
-
-  } catch(e) {
-    el.innerHTML = `<div class="alert alert-danger">❌ Erro ao verificar: ${e.message}</div>`;
-  }
+    if (id) { await supaUpdate('eventos', id, body); evMsg('ev-msg','✅ Evento atualizado!','success'); }
+    else    { await supa('eventos', { method:'POST', body }); evMsg('ev-msg','✅ Evento criado!','success'); }
+    await registrarLog('evento_salvo', nome);
+    setTimeout(() => { sec('eventos'); loadEvs(); }, 1500);
+  } catch(e) { evMsg('ev-msg','❌ Erro: '+e.message,'danger'); }
 }
+
+async function delEv(id) {
+  if (!confirm('Excluir este evento e todos os participantes?')) return;
+  try {
+    await supaDelete('participantes', `evento_id=eq.${id}`);
+    await supaDelete('eventos', `id=eq.${id}`);
+    loadEvs();
+  } catch(e) { alert('Erro: '+e.message); }
+}
+
+// ── Participantes ─────────────────────────────────
+function abrirParticipantes(eid, nome) {
+  document.getElementById('part-eid').value = eid;
+  document.getElementById('part-titulo').textContent = 'Participantes: ' + nome;
+  document.getElementById('m-plan').style.display = 'none';
+  document.getElementById('lista-parts').innerHTML = '';
+  sec('participantes');
+  carregarParticipantes(eid);
+}
+
+async function importarPlanilha() {
+  const eid  = document.getElementById('part-eid').value;
+  const file = document.getElementById('f-plan').files[0];
+  if (!file) { partMsg('⚠️ Selecione um arquivo.','warning'); return; }
+  partMsg('⏳ Lendo planilha...','info');
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+    if (rows.length < 2) { partMsg('❌ Planilha vazia.','danger'); return; }
+    const header = rows[0].map(c => String(c).trim().toLowerCase());
+    const iNome = header.findIndex(c => c==='nome'||c==='name');
+    const iMun  = header.findIndex(c => c.includes('munic'));
+    const col   = iNome >= 0 ? iNome : 0;
+    const nomes = rows.slice(1)
+      .map(r => ({ nome: String(r[col]||'').trim(), municipio: iMun>=0?String(r[iMun]||'').trim()||null:null }))
+      .filter(r => r.nome && !/^\d+$/.test(r.nome));
+    if (!nomes.length) { partMsg('❌ Nenhum nome encontrado.','danger'); return; }
+    await supaDelete('participantes', `evento_id=eq.${eid}`);
+    for (let i=0; i<nomes.length; i+=50) {
+      const batch = nomes.slice(i,i+50).map(r => ({ evento_id:eid, nome:r.nome, municipio:r.municipio }));
+      await supa('participantes', { method:'POST', body:batch });
+    }
+    partMsg(`✅ ${nomes.length} participantes importados!`,'success');
+    await registrarLog('planilha_importada', `${nomes.length} no evento ${eid}`);
+    carregarParticipantes(eid);
+  } catch(e) { partMsg('❌ Erro: '+e.message,'danger'); }
+}
+
+async function carregarParticipantes(eid) {
+  const ps = await supa('participantes', { filtros:`&evento_id=eq.${eid}&order=nome` });
+  const el = document.getElementById('lista-parts');
+  if (!ps.length) { el.innerHTML='<p class="text-muted small">Nenhum participante.</p>'; return; }
+  el.innerHTML = `
+    <p class="small fw-semibold mb-1">👥 ${ps.length} participantes:</p>
+    <div style="max-height:220px;overflow-y:auto;font-size:.82rem;border:1px solid #e5e7eb;border-radius:8px;padding:8px">
+      ${ps.map(p=>`<div class="border-bottom py-1">${p.nome}${p.municipio?' — '+p.municipio:''}</div>`).join('')}
+    </div>`;
+}
+
+// ── Logs ──────────────────────────────────────────
+async function loadLogs() {
+  const logs = await supa('logs', { filtros:'&order=criado_em.desc&limit=50' });
+  document.getElementById('lista-logs').innerHTML = logs.length
+    ? logs.map(l=>`<div class="border-bottom py-2"><span class="badge bg-secondary me-2">${l.acao}</span>${l.descricao||''}<span class="text-muted float-end small">${new Date(l.criado_em).toLocaleString('pt-BR')}</span></div>`).join('')
+    : '<p class="text-muted">Nenhum log.</p>';
+}
+
+async function registrarLog(acao, descricao) {
+  try { await supa('logs', { method:'POST', body:{ acao, descricao } }); } catch(e) {}
+}
+
+// ── Utils ─────────────────────────────────────────
+function fileParaBase64(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload  = e => res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function evMsg(id, txt, tipo) {
+  const el = document.getElementById(id);
+  el.className = 'alert alert-'+tipo+' small py-2 mt-2';
+  el.textContent = txt; el.style.display = 'block';
+}
+
+function partMsg(txt, tipo) {
+  const el = document.getElementById('m-plan');
+  el.className = 'alert alert-'+tipo+' small py-2';
+  el.textContent = txt; el.style.display = 'block';
+}
+
+document.getElementById('ev-template').addEventListener('change', function() {
+  const file = this.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('img-template').src = e.target.result;
+    document.getElementById('preview-template').style.display = 'block';
+  };
+  r.readAsDataURL(file);
+});
 </script>
 </body>
 </html>
