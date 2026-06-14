@@ -238,21 +238,55 @@ async function renderizar(evento, texto, cert) {
   ctx.fillRect(0, 0, W, H);
   ctx.drawImage(tmpl, 0, 0, W, H);
 
-  // Texto principal
-  const linhas  = texto.split('\n').filter(l => l.trim());
-  const szTexto = Math.round(W * 0.022);
-  const lhTexto = szTexto * 1.6;
-  const yInicio = H * 0.40;
+  // ── Texto do certificado ──────────────────────────
+// Substitua o bloco de texto na função renderizar no index.html
 
-  ctx.save();
-  ctx.font         = `bold ${szTexto}px Arial, sans-serif`;
-  ctx.fillStyle    = '#1a1a1a';
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor  = 'rgba(255,255,255,0.9)';
-  ctx.shadowBlur   = 6;
-  linhas.forEach((l, i) => ctx.fillText(l, W / 2, yInicio + i * lhTexto));
-  ctx.restore();
+const linhas  = texto.split('\n').filter(l => l.trim());
+const szTexto = Math.round(W * 0.018); // fonte menor
+const lhTexto = szTexto * 1.7;
+const yInicio = H * 0.40;
+const maxLarg = W * 0.75; // largura máxima do texto
+
+ctx.save();
+ctx.font         = `bold ${szTexto}px Arial, sans-serif`;
+ctx.fillStyle    = '#1a1a1a';
+ctx.textAlign    = 'center';
+ctx.textBaseline = 'middle';
+ctx.shadowColor  = 'rgba(255,255,255,0.9)';
+ctx.shadowBlur   = 6;
+
+// Quebra automática de linha se o texto for longo
+function quebrarLinhas(ctx, texto, maxLarg) {
+  const palavras = texto.split(' ');
+  const linhas = [];
+  let atual = '';
+  for (const p of palavras) {
+    const teste = atual ? atual + ' ' + p : p;
+    if (ctx.measureText(teste).width > maxLarg && atual) {
+      linhas.push(atual);
+      atual = p;
+    } else {
+      atual = teste;
+    }
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+
+// Processa cada linha com quebra automática
+const todasLinhas = [];
+linhas.forEach(l => {
+  const sub = quebrarLinhas(ctx, l, maxLarg);
+  todasLinhas.push(...sub);
+});
+
+const totalAltura = todasLinhas.length * lhTexto;
+const yStart = yInicio - totalAltura / 2 + lhTexto / 2;
+
+todasLinhas.forEach((l, i) => {
+  ctx.fillText(l, W / 2, yStart + i * lhTexto);
+});
+ctx.restore();
 
   // Assinatura
   const yA = H * 0.72;
